@@ -3,7 +3,7 @@ name = "florida-predictor"
 version = "7.0.0"
 description = "Florida Morning Predictor - Sistema de Predicción de Loterías Pick 3"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     { name = "Yosbel Alba Estrada", email = "khloealba932@gmail.com" }
 ]

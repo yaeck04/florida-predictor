@@ -1,0 +1,34 @@
+[project]
+name = "florida-predictor"
+version = "7.0.0"
+description = "Florida Morning Predictor - Sistema de Predicción de Loterías Pick 3"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "Yosbel Alba Estrada", email = "khloealba932@gmail.com" }
+]
+dependencies = [
+    "flet==0.84.0",
+    "numpy>=1.24.0",
+    "requests>=2.31.0"
+]
+
+[tool.flet]
+org = "yae.ppl"
+product = "FloridaPredictor"
+company = "PPL"
+copyright = "Copyright (C) 2025 by Yosbel Alba Estrada"
+
+[tool.flet.app]
+path = "src"
+
+[tool.uv]
+dev-dependencies = [
+    "flet[all]==0.84.0",
+]
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.group.dev.dependencies]
+flet = {extras = ["all"], version = "0.84.0"}

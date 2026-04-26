@@ -1,7 +1,7 @@
-# docs: https://docs.flet.dev/publish/#github-actions/
+# ok docs: https://docs.flet.dev/publish/#github-actions/
 # Adaptado para Florida Predictor v7.0 - Solo Android + Windows
 
-name: 🎰 Build Florida Predictor
+name: 🎰 Build Florida Predictor1
 
 on:
   push:

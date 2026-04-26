@@ -1,21 +1,228 @@
-matrix:
-  include:
-    # ... tus actuales ...
+# docs: https://docs.flet.dev/publish/#github-actions/
+# Adaptado para Florida Predictor v7.0 - Solo Android + Windows
+
+name: 🎰 Build Florida Predictor
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+env:
+  UV_PYTHON: "3.11"
+  PYTHONUTF8: 1
+  
+  # https://docs.flet.dev/reference/environment-variables
+  FLET_CLI_NO_RICH_OUTPUT: 1
+  
+  # Versiones del proyecto
+  BUILD_VERSION: "7.0.0"
+  APP_NAME: "FloridaPredictor"
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ======== ANDROID (Solo APK) ========
+          - name: android-apk
+            display_name: "🤖 Android APK"
+            runner: ubuntu-latest
+            build_cmd: "flet build apk"
+            artifact_path: "build/apk"
+            artifact_pattern: "*.apk"
+            needs_linux_deps: false
+            
+          # ======== WINDOWS ========
+          - name: windows-exe
+            display_name: "💻 Windows EXE"
+            runner: windows-latest
+            build_cmd: "flet build windows"
+            artifact_path: "build/windows"
+            artifact_pattern: "*.exe"
+            needs_linux_deps: false
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: 📦 Install Linux dependencies
+        if: matrix.needs_linux_deps
+        shell: bash
+        run: |
+          sudo apt update --allow-releaseinfo-change
+          sudo apt-get install -y --no-install-recommends \
+            clang ninja-build libgtk-3-dev libasound2-dev libmpv-dev mpv \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
+            gstreamer1.0-libav gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 \
+            gstreamer1.0-qt5 gstreamer1.0-pulseaudio pkg-config libsecret-1-0 libsecret-1-dev
+          sudo apt-get clean
+
+      - name: 🔨 Build app (${{ matrix.display_name }})
+        shell: bash
+        run: |
+          echo "============================================"
+          echo "🚀 Building: ${{ matrix.display_name }}"
+          echo "📦 Command: ${{ matrix.build_cmd }}"
+          echo "📂 Output: ${{ matrix.artifact_path }}"
+          echo "============================================"
+          echo ""
+          
+          uv run ${{ matrix.build_cmd }} --yes --verbose
+          
+          echo ""
+          echo "============================================"
+          echo "📋 Verifying build output..."
+          echo "============================================"
+          
+          if [ -d "${{ matrix.artifact_path }}" ]; then
+            echo "✅ Directory exists: ${{ matrix.artifact_path }}"
+            echo ""
+            echo "📁 Contents:"
+            ls -lah ${{ matrix.artifact_path }}/
+            echo ""
+            
+            echo "🔍 Looking for ${{ matrix.artifact_pattern }} files:"
+            find ${{ matrix.artifact_path }} -name "${{ matrix.artifact_pattern }}" -type f 2>/dev/null || echo "⚠️ No files found with pattern"
+          else
+            echo "❌ Directory NOT found: ${{ matrix.artifact_path }}"
+            echo "🔍 Searching for alternatives..."
+            find build/ -name "${{ matrix.artifact_pattern }}" -type f 2>/dev/null | head -10 || true
+          fi
+          
+          echo ""
+          echo "============================================"
+
+      # ✅ CORREGIDO: Subir SOLO los archivos específicos (.apk o .exe)
+      - name: 📤 Upload Artifact (${{ matrix.display_name }})
+        uses: actions/upload-artifact@v5.0.0
+        with:
+          # Nombre descriptivo del artifact
+          name: ${{ env.APP_NAME }}-${{ matrix.name }}-v${{ env.BUILD_VERSION }}
+          # ✅ Patrón específico: solo .apk o .exe, NO toda la carpeta
+          path: |
+            ${{ matrix.artifact_path }}/${{ matrix.artifact_pattern }}
+            ${{ matrix.artifact_path }}/**/${{ matrix.artifact_pattern }}
+          # Configuración optimizada
+          retention-days: 7              # Auto-eliminar en 7 días
+          if-no-files-found: warn        # Advertir si no existe (no fallar)
+          overwrite: true                # Sobrescribir artifacts anteriores
+          compression-level: 6           # Compresión balanceada
+
+      # ======== CREAR RELEASE (Solo para main/master) ========
+      - name: 🏷️ Create GitHub Release
+        if: |
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && 
+          (matrix.name == 'android-apk')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.BUILD_VERSION }}.${{ github.run_number }}
+          name: "🎰 Florida Predictor v${{ env.BUILD_VERSION }}.${{ github.run_number }}"
+          body: |
+            ## 🌴 Florida Morning Predictor v${{ env.BUILD_VERSION }}
+            
+            ### ✨ Características principales:
+            - 🔮 **Predicción inteligente** Pick 3 (Florida, Georgia, New York)
+            - 📊 **Análisis completo**: Centena / Decena / Unidad
+            - 🏆 **Top 10** Fijos más frecuentes
+            - 📐 **Análisis de Cuadrantes** (00-99)
+            - 📈 **Detección de Tendencias** en tiempo real
+            - 🎯 **Estrategia de Serie** de Decena
+            - 🔄 **Actualización automática** de Base de Datos
+            
+            ---
+            
+            ### 📱 Descargas disponibles:
+            
+            | Plataforma | Archivo | Nota |
+            |------------|---------|------|
+            | 🤖 **Android** | `app-release.apk` | Activar "Fuentes desconocidas" |
+            | 💻 **Windows** | `FloridaPredictor.exe` | ZIP con todos los archivos |
+            
+            ---
+            
+            ### 🔧 Información técnica:
+            - **Versión**: v${{ env.BUILD_VERSION }}
+            - **Build**: #${{ github.run_number }}
+            - **Commit**: `${{ github.sha }}`
+            - **Fecha**: ${{ github.event.head_commit.timestamp }}
+            
+            ---
+            
+            *🚀 Generado automáticamente por GitHub Actions • Flet Framework*
+          draft: false
+          prerelease: false
+          files: |
+            ${{ matrix.artifact_path }}/${{ matrix.artifact_pattern }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ======== ZIP PARA WINDOWS (Adicional al release) ========
+      - name: 📁 Create Windows ZIP for Release
+        if: |
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && 
+          (matrix.name == 'windows-exe') &&
+          runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Write-Host "📦 Creando ZIP para Windows..."
+          
+          $zipName = "${{ env.APP_NAME }}-Windows-v${{ env.BUILD_VERSION }}.zip"
+          
+          if (Test-Path "build\windows\${{ env.APP_NAME }}.exe") {
+            Compress-Archive -Path "build\windows\${{ env.APP_NAME }}.exe" `
+                             -DestinationPath $zipName
+            Write-Host "✅ ZIP creado desde .exe individual"
+          }
+          elseif (Test-Path "build\windows") {
+            Compress-Archive -Path "build\windows\*" `
+                             -DestinationPath $zipName
+            Write-Host "✅ ZIP creado desde carpeta completa"
+          }
+          
+          if (Test-Path $zipName) {
+            $size = [math]::Round((Get-Item $zipName).Length / 1MB, 2)
+            Write-Host "📊 Tamaño del ZIP: $size MB"
+          }
+
+      - name: 📤 Upload Windows ZIP to Release
+        if: |
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && 
+          (matrix.name == 'windows-exe')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.BUILD_VERSION }}.${{ github.run_number }}
+          files: ${{ env.APP_NAME }}-Windows-v${{ env.BUILD_VERSION }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================
+  # 🧹 LIMPIEZA AUTOMÁTICA (Post-build)
+  # ============================================
+  cleanup:
+    name: 🧹 Cleanup Old Artifacts
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: always()
     
-    # ➕ AGREGAR LINUX:
-    - name: linux-app
-      display_name: "🐧 Linux App"
-      runner: ubuntu-latest
-      build_cmd: "flet build linux"
-      artifact_path: "build/linux"
-      artifact_pattern: "*"  # Linux suele ser una carpeta entera
-      needs_linux_deps: true  # Requiere instalar dependencias
-      
-    # ➕ AGREGAR WEB:
-    - name: web-pwa
-      display_name: "🌐 Web PWA"
-      runner: ubuntu-latest
-      build_cmd: "flet build web"
-      artifact_path: "build/web"
-      artifact_pattern: "*"
-      needs_linux_deps: false
+    steps:
+      - name: 🗑️ Delete artifacts older than 7 days
+        uses: c-hive/gha-remove-artifacts@v1
+        with:
+          age: '7 days'
+          skip-tags: true
+          skip-recent: 3
+          skip-recent-runs: 5

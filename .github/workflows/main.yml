@@ -1,103 +1,196 @@
 # docs: https://docs.flet.dev/publish/#github-actions/
 
-name: Build Flet App
+name: 🎰 Build Florida Predictor
 
 on:
   push:
+    branches:
+      - master
+      - main
   pull_request:
-  workflow_dispatch:
+    branches:
+      - master
+      - main
+  workflow_dispatch: # Permitir ejecución manual
 
 env:
-  UV_PYTHON: 3.12
+  UV_PYTHON: "3.11"
   PYTHONUTF8: 1
-
-  # https://docs.flet.dev/reference/environment-variables
+  
+  # Configuración Flet
   FLET_CLI_NO_RICH_OUTPUT: 1
+  
+  # Versiones
+  BUILD_VERSION: "7.0.0"
+  APP_NAME: "FloridaPredictor"
 
 jobs:
-  build:
-    name: Build ${{ matrix.name }}
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # -------- Desktop --------
-          - name: linux
-            runner: ubuntu-latest
-            build_cmd: "flet build linux"
-            artifact_path: build/linux
-            needs_linux_deps: true
-
-          - name: macos
-            runner: macos-latest
-            build_cmd: "flet build macos"
-            artifact_path: build/macos
-            needs_linux_deps: false
-
-          - name: windows
-            runner: windows-latest
-            build_cmd: "flet build windows"
-            artifact_path: build/windows
-            needs_linux_deps: false
-
-          # -------- Android --------
-          - name: aab
-            runner: ubuntu-latest
-            build_cmd: "flet build aab"
-            artifact_path: build/aab
-            needs_linux_deps: false
-
-          - name: apk
-            runner: ubuntu-latest
-            build_cmd: "flet build apk"
-            artifact_path: build/apk
-            needs_linux_deps: false
-
-          # -------- iOS --------
-          - name: ipa
-            runner: macos-latest
-            build_cmd: "flet build ipa"
-            artifact_path: build/ipa
-            needs_linux_deps: false
-
-          # -------- Web --------
-          - name: web
-            runner: ubuntu-latest
-            build_cmd: "flet build web"
-            artifact_path: build/web
-            needs_linux_deps: false
-
+  # ============================================
+  # 📱 ANDROID APK BUILD
+  # ============================================
+  build-android:
+    name: 🤖 Android APK
+    runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout repository
+      - name: 📥 Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup uv
+      - name: 🐍 Setup uv (Python package manager)
         uses: astral-sh/setup-uv@v6
 
-      - name: Install Linux dependencies
-        if: matrix.needs_linux_deps
+      - name: 🔨 Build Android APK
         shell: bash
         run: |
-          sudo apt update --allow-releaseinfo-change
-          sudo apt-get install -y --no-install-recommends \
-            clang ninja-build libgtk-3-dev libasound2-dev libmpv-dev mpv \
-            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev \
-            gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
-            gstreamer1.0-libav gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 \
-            gstreamer1.0-qt5 gstreamer1.0-pulseaudio pkg-config libsecret-1-0 libsecret-1-dev
-          sudo apt-get clean
+          echo "🚀 Iniciando build Android para Florida Predictor..."
+          uv run flet build apk --yes --verbose
+          
+          echo "📦 Verificando archivo generado..."
+          ls -lh build/app/outputs/flutter-apk/
+          
+          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "❌ ERROR: No se generó el APK"
+            exit 1
+          fi
+          
+          echo "✅ APK generado exitosamente"
 
-
-      - name: Build app
-        shell: bash
-        run: |
-          uv run ${{ matrix.build_cmd }} --yes --verbose
-
-      - name: Upload Artifact
+      # ✅ SOLO SUBIR EL .apk (1 archivo ~15-30MB, NO 1867 archivos)
+      - name: 📤 Upload APK Artifact
         uses: actions/upload-artifact@v5.0.0
         with:
-          name: ${{ matrix.name }}-build-artifact
-          path: ${{ matrix.artifact_path }}
-          if-no-files-found: error
-          overwrite: false
+          name: ${{ env.APP_NAME }}-Android-v${{ env.BUILD_VERSION }}
+          # ← RUTA ESPECÍFICA AL .apk, NO toda la carpeta build/apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7              # ← Auto-eliminar en 7 días (ahorra storage!)
+          if-no-files-found: warn        # ← No fallar si no existe (solo advertir)
+          overwrite: true                # ← Sobrescribir artifacts anteriores
+          compression-level: 6           # ← Compresión balanceada
+
+      # Crear Release SOLO cuando se push a main/master
+      - name: 🏷️ Create GitHub Release
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.BUILD_VERSION }}.${{ github.run_number }}
+          name: "🎰 Florida Predictor v${{ env.BUILD_VERSION }}.${{ github.run_number }}"
+          body: |
+            ## 🌴 Florida Morning Predictor v${{ env.BUILD_VERSION }}
+            
+            ### ✨ Características principales:
+            - 🔮 **Predicción inteligente** Pick 3 (Florida, Georgia, New York)
+            - 📊 **Análisis completo**: Centena / Decena / Unidad
+            - 🏆 **Top 10** Fijos más frecuentes
+            - 📐 **Análisis de Cuadrantes** (00-99)
+            - 📈 **Detección de Tendencias** en tiempo real
+            - 🎯 **Estrategia de Serie** de Decena
+            - 🔄 **Actualización automática** de Base de Datos
+            
+            ---
+            
+            ### 📱 Descargas disponibles:
+            
+            | Plataforma | Archivo | Tamaño |
+            |------------|---------|--------|
+            | 🤖 **Android** | `app-release.apk` | ~25 MB |
+            
+            > ⚠️ **Nota**: Para instalar en Android, activa "Fuentes desconocidas" en Ajustes > Seguridad
+            
+            ---
+            
+            ### 🔧 Información técnica:
+            - **Versión**: ${{ env.BUILD_VERSION }}
+            - **Build**: #${{ github.run_number }}
+            - **Commit**: `${{ github.sha }}`
+            - **Fecha**: ${{ github.event.head_commit.timestamp }}
+            
+            ---
+            
+            *🚀 Generado automáticamente por GitHub Actions*
+          draft: false
+          prerelease: false
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================
+  # 💻 WINDOWS EXE BUILD
+  # ============================================
+  build-windows:
+    name: 💻 Windows EXE
+    runs-on: windows-latest
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup uv (Python package manager)
+        uses: astral-sh/setup-uv@v6
+
+      - name: 🔨 Build Windows EXE
+        shell: bash
+        run: |
+          echo "🚀 Iniciando build Windows para Florida Predictor..."
+          uv run flet build windows --yes --verbose
+          
+          echo "📦 Verificando archivo generado..."
+          ls -lh build/windows/x64/runner/Release/
+          
+          if [ ! -f "build/windows/x64/runner/Release/${{ env.APP_NAME }}.exe" ]; then
+            echo "⚠️ Buscando nombre alternativo del exe..."
+            find build/windows -name "*.exe" -type f
+          fi
+          
+          echo "✅ Build Windows completado"
+
+      # ✅ SOLO SUBIR EL .exe (1 archivo ~40-60MB)
+      - name: 📤 Upload Windows Artifact
+        uses: actions/upload-artifact@v5.0.0
+        with:
+          name: ${{ env.APP_NAME }}-Windows-v${{ env.BUILD_VERSION }}
+          # ← RUTA ESPECÍFICA al .exe o carpeta Release
+          path: |
+            build/windows/x64/runner/Release/*.exe
+          retention-days: 7              # ← Auto-eliminar en 7 días
+          if-no-files-found: warn        # ← Solo advertir si no existe
+          overwrite: true                # ← Sobrescribir anteriores
+          compression-level: 6           # ← Compresión balanceada
+
+      # Crear ZIP para Release
+      - name: 📁 Create ZIP for Release
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        run: |
+          Compress-Archive -Path `
+            "build/windows\x64\runner\Release\*" `
+            -DestinationPath "${{ env.APP_NAME }}-Windows-v${{ env.BUILD_VERSION }}.zip"
+          
+          Write-Host "📦 ZIP creado:"
+          Get-ChildItem "${{ env.APP_NAME }}-Windows-v${{ env.BUILD_VERSION }}.zip" | Select-Object Name, Length
+
+      # Subir ZIP al Release existente (creado por Android job)
+      - name: 📤 Upload to GitHub Release
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.BUILD_VERSION }}.${{ github.run_number }}
+          files: ${{ env.APP_NAME }}-Windows-v${{ env.BUILD_VERSION }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================
+  # 🧹 LIMPIEZA POST-BUILD (Opcional pero recomendado)
+  # ============================================
+  cleanup:
+    name: 🧹 Cleanup Old Artifacts
+    needs: [build-android, build-windows]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: 🗑️ Delete old artifacts (older than 7 days)
+        uses: c-hive/gha-remove-artifacts@v1
+        with:
+          age: '7 days'               # ← Eliminar artifacts > 7 días
+          skip-tags: true             # ← No eliminar tags
+          skip-recent: 3              # ← Mantener los 3 más recientes
